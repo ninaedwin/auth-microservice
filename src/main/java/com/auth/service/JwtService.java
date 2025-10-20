@@ -3,6 +3,7 @@ package com.auth.service;
 import com.auth.config.JwtConfig;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -11,11 +12,13 @@ import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
- * Servicio para operaciones con JWT - CORREGIDO  USA LAS MISMAS CLAVES RSA
+ * Servicio para operaciones con JWT - CORREGIDO  USA LAS MISMAS CLAVES RSA - INCLUYE AUTHORITIES
  */
 @Service
 public class JwtService {
@@ -40,11 +43,18 @@ public class JwtService {
     // =========================================================================
 
     /**
-     * Genera un access token JWT para el usuario usando RSA
+     * Genera un access token JWT para el usuario usando RSA incluyendo authorities
+     *
      */
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("token_type", "access");
+        // INCLUIR AUTHORITIES EN EL TOKEN
+        List<String> authorities = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+        claims.put("authorities", authorities);
+        System.out.println("Including authorities in token: " + authorities);
         String token = buildToken(claims, userDetails, jwtConfig.getExpiration());
         System.out.println("✅ Access Token generated for: " + userDetails.getUsername());
         return token;
@@ -75,6 +85,19 @@ public class JwtService {
                 .compact();
     }
 
+    /**
+     * Extrae las authorities del token JWT
+     */
+    @SuppressWarnings("unchecked")
+    public List<String> extractAuthorities(String token) {
+        return extractClaim(token, claims -> {
+            Object authorities = claims.get("authorities");
+            if (authorities instanceof List) {
+                return (List<String>) authorities;
+            }
+            return List.of();
+        });
+    }
     // =========================================================================
     // TOKEN VALIDATION METHODS
     // =========================================================================
@@ -103,6 +126,11 @@ public class JwtService {
         }
     }
 
+
+    // =========================================================================
+    // CLAIM EXTRACTION METHODS
+    // =========================================================================
+
     /**
      * Extrae el username del token JWT
      */
@@ -116,10 +144,6 @@ public class JwtService {
     public String extractTokenType(String token) {
         return extractClaim(token, claims -> claims.get("token_type", String.class));
     }
-
-    // =========================================================================
-    // CLAIM EXTRACTION METHODS
-    // =========================================================================
 
     /**
      * Extrae un claim específico del token JWT

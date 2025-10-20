@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -81,10 +82,10 @@ public class UserController {
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Acceso a endpoint protegido - TOKEN VALIDO");
         response.put("username", username);
-        response.put("authorities", authorities);
+        response.put("authorities", authorities); // ahora es una lista
         response.put("timestamp", LocalDateTime.now());
         response.put("authentication_required", true);
-
+        System.out.println("User " + username + " has authorities: " + authorities);
         return ResponseEntity.ok(response);
     }
 
@@ -110,12 +111,20 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> getUserProfile() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
+        //OBTENER ROL PRINCIPAL
+        String mainRole = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .findFirst()
+                .orElse("USER");
 
         Map<String, Object> response = new HashMap<>();
         response.put("username", username);
         response.put("email", username);
         response.put("full_name", "Usuario Demo");
-        response.put("profile_type", "STANDARD");
+        response.put("profile_type", mainRole.replace("ROLE_",""));
+        response.put("roles", authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList()));
         response.put("member_since", "2024-01-01");
         response.put("last_login", LocalDateTime.now());
 
@@ -145,16 +154,17 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
         String username = authentication.getName();
-        String authorities = authentication.getAuthorities().stream()
+        List<String> authorities = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.joining(", "));
+                .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("user", Map.of(
                 "username", username,
                 "authenticated", authentication.isAuthenticated(),
-                "authorities", authorities.split(", ")
+                "authorities", authorities
         ));
         response.put("authentication", Map.of(
                 "type", authentication.getClass().getSimpleName(),

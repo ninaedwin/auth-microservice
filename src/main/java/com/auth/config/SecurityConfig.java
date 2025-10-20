@@ -31,6 +31,18 @@ import org.springframework.security.web.SecurityFilterChain;
 import java.time.Duration;
 import java.util.UUID;
 
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * Configuración principal de seguridad para OAuth2 Authorization Server
  * y protección de endpoints con JWT
@@ -50,6 +62,7 @@ public class SecurityConfig {
     // =========================================================================
     // OAUTH2 AUTHORIZATION SERVER CONFIGURATION
     // =========================================================================
+
     /**
      * Configuración del Authorization Server OAuth2
      * Versión actualizada sin métodos deprecados
@@ -99,7 +112,9 @@ public class SecurityConfig {
                 )
                 // Configura el resource server para validar JWT
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(Customizer.withDefaults())
+                        .jwt(jwt -> jwt
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter()) // CONVERTIR AUTHORITIES
+                        )
                 )
                 // Deshabilitar CSRF para endpoints de auth y H2 console
                 .csrf(csrf -> csrf
@@ -117,6 +132,30 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Converter personalizado para extraer authorities del JWT
+     */
+    private Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            // Extraer authorities del claim "authorities" en el JWT
+            @SuppressWarnings("unchecked")
+            List<String> authorities = jwt.getClaim("authorities");
+
+            if (authorities == null) {
+                System.out.println("No authorities found in JWT token");
+                return Collections.emptyList();
+            }
+
+            System.out.println("Extracted authorities from JWT: " + authorities);
+            return authorities.stream()
+                    .map(SimpleGrantedAuthority::new)
+                    .collect(Collectors.toList());
+        });
+        return converter;
+    }
+
     // =========================================================================
     // AUTHENTICATION MANAGER CONFIGURATION
     // =========================================================================
@@ -125,7 +164,7 @@ public class SecurityConfig {
      * AuthenticationManager personalizado para la autenticación
      */
     @Bean
-    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception{
+    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
         AuthenticationManagerBuilder authenticationManagerBuilder =
                 http.getSharedObject(AuthenticationManagerBuilder.class);
         authenticationManagerBuilder
@@ -233,8 +272,8 @@ public class SecurityConfig {
     // JWT CONFIGURATION
     // =========================================================================
 
-     /**
-      *  Configuración del Authorization Server
+    /**
+     * Configuración del Authorization Server
      */
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
