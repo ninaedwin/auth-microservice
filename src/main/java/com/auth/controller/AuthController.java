@@ -233,4 +233,49 @@ public class AuthController {
             ));
         }
     }
+
+    /**
+     * Endpoint para obtener información del token
+     * <p>
+     * Ejemplo de request:
+     * GET /auth/token-info
+     * Header: Authorization: Bearer {token}
+     * <p>
+     * Ejemplo de response:
+     * {
+     * "username": "user@example.com",
+     * "token_type": "access",
+     * "issuer": "auth-service",
+     * "issued_at": "2024-01-15T10:30:00.000Z",
+     * "expires_at": "2024-01-16T10:30:00.000Z"
+     * }
+     */
+
+    public ResponseEntity<?> getTokenInfo(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Invalid authorization header"));
+            }
+
+            String token = authHeader.substring(7);
+            String username = jwtService.extractUsername(token);
+            String tokenType = jwtService.extractTokenType(token);
+
+            return ResponseEntity.ok(Map.of(
+                    "username", username,
+                    "token_type", tokenType,
+                    "issuer", jwtService.extractClaim(token, claims -> claims.getIssuer()),
+                    "issued_at", jwtService.extractClaim(token, claims -> claims.getIssuedAt()),
+                    "expires_at", jwtService.extractClaim(token, claims -> claims.getExpiration())
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(
+                            "error", "Failed to extract token info",
+                            "message", e.getMessage()
+                    ));
+        }
+    }
 }
