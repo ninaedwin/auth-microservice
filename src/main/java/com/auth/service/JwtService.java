@@ -3,11 +3,11 @@ package com.auth.service;
 import com.auth.config.JwtConfig;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.MacAlgorithm;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.SecretKey;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Servicio para operaciones con JWT
+ * Servicio para operaciones con JWT - CORREGIDO para usar RSA
  * - Generación de tokens
  * - Validación de tokens
  * - Extracción de información de tokens
@@ -24,12 +24,13 @@ import java.util.function.Function;
 public class JwtService {
 
     private final JwtConfig jwtConfig;
-    private final SecretKey signingKey;
-    private final MacAlgorithm algorithm = Jwts.SIG.HS256;
+    private final PrivateKey privateKey;
+    private final PublicKey publicKey;
 
     public JwtService(JwtConfig jwtConfig) {
         this.jwtConfig = jwtConfig;
-        this.signingKey = jwtConfig.getSigningKey();
+        this.privateKey = jwtConfig.getPrivateKey();
+        this.publicKey = jwtConfig.getPublicKey();
     }
 
     // =========================================================================
@@ -37,7 +38,7 @@ public class JwtService {
     // =========================================================================
 
     /**
-     * Genera un access token JWT para el usuario
+     * Genera un access token JWT para el usuario usando RSA
      */
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
@@ -46,7 +47,7 @@ public class JwtService {
     }
 
     /**
-     * Genera un refresh token JWT para el usuario
+     * Genera un refresh token JWT para el usuario usando RSA
      */
     public String generateRefreshToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
@@ -55,7 +56,7 @@ public class JwtService {
     }
 
     /**
-     * Método interno para generar tokens JWT - CORREGIDO
+     * Método interno para generar tokens JWT con RSA- CORREGIDO
      */
     private String buildToken(Map<String, Object> claims, UserDetails userDetails, long expiration) {
         return Jwts.builder()
@@ -64,7 +65,7 @@ public class JwtService {
                 .issuer(jwtConfig.getIssuer())
                 .issuedAt(Date.from(Instant.now()))
                 .expiration(Date.from(Instant.now().plusMillis(expiration)))
-                .signWith(signingKey, algorithm)
+                .signWith(privateKey, Jwts.SIG.RS256) // Firma con RSA
                 .compact();
     }
 
@@ -122,7 +123,7 @@ public class JwtService {
      */
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .verifyWith(signingKey)
+                .verifyWith(publicKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
