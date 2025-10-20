@@ -37,7 +37,7 @@ public class AuthController {
     public AuthController(AuthenticationManager authenticationManager,
                           UserDetailsService userDetailsService,
                           JwtService jwtService,
-                          JwtConfig jwtConfig){
+                          JwtConfig jwtConfig) {
         this.authenticationManager = authenticationManager;
         this.userDetailsService = userDetailsService;
         this.jwtService = jwtService;
@@ -51,26 +51,26 @@ public class AuthController {
     /**
      * Endpoint para login de usuarios
      * Valida credenciales y retorna JWT tokens
-     *
+     * <p>
      * Ejemplo de request:
      * POST /auth/login
      * {
-     *   "email": "user@example.com",
-     *   "password": "password"
+     * "email": "user@example.com",
+     * "password": "password"
      * }
-     *
+     * <p>
      * Ejemplo de response:
      * {
-     *   "access_token": "eyJhbGciOiJIUzI1NiIs...",
-     *   "token_type": "Bearer",
-     *   "expires_in": 86400,
-     *   "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
-     *   "scope": "read write profile"
+     * "access_token": "eyJhbGciOiJIUzI1NiIs...",
+     * "token_type": "Bearer",
+     * "expires_in": 86400,
+     * "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+     * "scope": "read write profile"
      * }
      */
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody AuthRequest request){
+    public ResponseEntity<?> login(@Valid @RequestBody AuthRequest request) {
         try {
             // Atenticar usuario
             authenticationManager.authenticate(
@@ -88,41 +88,41 @@ public class AuthController {
             AuthResponse response = new AuthResponse(
                     accessToken,
                     "Bearer",
-                    jwtConfig.getExpiration()/1000 // Convertir a segundos
+                    jwtConfig.getExpiration() / 1000,  //Convertir a segundos
                     refreshToken,
                     "read write profile"
             );
 
             return ResponseEntity.ok(response);
-        } catch (BadCredentialsException e){
+        } catch (BadCredentialsException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of(
                             "error", "Invalid credentials",
                             "messange", "Email or passwrod is incorrect"
                     ));
-        } catch (Exception e){
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of(
                             "error", "Authentication failed",
                             "messange", e.getMessage()
-                            ));
+                    ));
         }
     }
 
     /**
      * Endpoint para refrescar access token usando refresh token
-     *
+     * <p>
      * Ejemplo de request:
      * POST /auth/refresh
      * Header: Authorization: Bearer {refresh_token}
-     *
+     * <p>
      * Ejemplo de response:
      * {
-     *   "access_token": "eyJhbGciOiJIUzI1NiIs...",
-     *   "token_type": "Bearer",
-     *   "expires_in": 86400,
-     *   "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
-     *   "scope": "read write profile"
+     * "access_token": "eyJhbGciOiJIUzI1NiIs...",
+     * "token_type": "Bearer",
+     * "expires_in": 86400,
+     * "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+     * "scope": "read write profile"
      * }
      */
     @PostMapping("/refresh")
@@ -176,4 +176,61 @@ public class AuthController {
         }
     }
 
+    /**
+     * Endpoint para validar un token JWT
+     * <p>
+     * Ejemplo de request:
+     * GET /auth/validate
+     * Header: Authorization: Bearer {access_token}
+     * <p>
+     * Ejemplo de response (válido):
+     * {
+     * "valid": true,
+     * "username": "user@example.com",
+     * "token_type": "access",
+     * "message": "Token is valid"
+     * }
+     * <p>
+     * Ejemplo de response (inválido):
+     * {
+     * "valid": false,
+     * "message": "Token is invalid or expired"
+     * }
+     */
+    public ResponseEntity<?> validateToken(@RequestHeader(value = "Authorization",
+            required = false) String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.ok(Map.of(
+                        "valid", false,
+                        "message", "Missing or invalid authorization header"
+                ));
+            }
+            String token = authHeader.substring(7);
+
+            // Validar tipo de token
+            String tokenType = jwtService.extractTokenType(token);
+            if (!"access".equals(tokenType)) {
+                return ResponseEntity.ok(Map.of(
+                        "valid", false,
+                        "message", "Invalid token type"
+                ));
+            }
+
+            boolean isValid = jwtService.isTokenValid(token);
+            String username = jwtService.extractUsername(token);
+
+            return ResponseEntity.ok(Map.of(
+                    "valid", isValid,
+                    "username", username,
+                    "token_type", tokenType,
+                    "message", isValid ? "Token is valid" : "Token is invalid or expired"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                    "valid", false,
+                    "message", "Token validation failed: " + e.getMessage()
+            ));
+        }
+    }
 }
