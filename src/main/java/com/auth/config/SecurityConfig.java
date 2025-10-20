@@ -8,7 +8,10 @@ import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
@@ -38,8 +41,14 @@ import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.util.UUID;
 
+/**
+ * Configuración principal de seguridad para OAuth2 Authorization Server
+ * y protección de endpoints con JWT
+ */
+
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
     // =========================================================================
     // OAUTH2 AUTHORIZATION SERVER CONFIGURATION
@@ -82,7 +91,8 @@ public class SecurityConfig {
                         // Endpoints públicos
                         .requestMatchers(
                                 "/auth/login",
-                                "/auth/register",
+                                "/auth/refresh",
+                                "/auth/validate",
                                 "/api/public",
                                 "/actuator/health",
                                 "/h2-console/**"
@@ -109,6 +119,25 @@ public class SecurityConfig {
 
         return http.build();
     }
+
+    // =========================================================================
+    // AUTHENTICATION MANAGER CONFIGURATION
+    // =========================================================================
+
+    /**
+     * AuthenticationManager personalizado para la autenticación
+     */
+    @Bean
+    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception{
+        AuthenticationManagerBuilder authenticationManagerBuilder =
+                http.getSharedObject(AuthenticationManagerBuilder.class);
+        authenticationManagerBuilder
+                .userDetailsService(userDetailsService())
+                .passwordEncoder(passwordEncoder());
+        return authenticationManagerBuilder.build();
+    }
+
+
     // =========================================================================
     // USER MANAGEMENT CONFIGURATION
     // =========================================================================

@@ -16,6 +16,9 @@ import java.util.function.Function;
 
 /**
  * Servicio para operaciones con JWT
+ * - Generación de tokens
+ * - Validación de tokens
+ * - Extracción de información de tokens
  */
 @Service
 public class JwtService {
