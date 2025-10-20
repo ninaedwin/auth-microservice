@@ -69,6 +69,7 @@ public class UserController {
      * }
      */
 
+    @GetMapping("/protected")
     public ResponseEntity<Map<String, Object>> protectedEndpoint() {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
