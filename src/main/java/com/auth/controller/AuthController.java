@@ -12,10 +12,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -112,5 +109,71 @@ public class AuthController {
         }
     }
 
+    /**
+     * Endpoint para refrescar access token usando refresh token
+     *
+     * Ejemplo de request:
+     * POST /auth/refresh
+     * Header: Authorization: Bearer {refresh_token}
+     *
+     * Ejemplo de response:
+     * {
+     *   "access_token": "eyJhbGciOiJIUzI1NiIs...",
+     *   "token_type": "Bearer",
+     *   "expires_in": 86400,
+     *   "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+     *   "scope": "read write profile"
+     * }
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Invalid authorization header"));
+            }
+
+            String refreshToken = authHeader.substring(7);
+
+            // Validar que sea un refresh token
+            if (!"refresh".equals(jwtService.extractTokenType(refreshToken))) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of(
+                                "error", "Invalid token type",
+                                "message", "Expected refresh token"
+                        ));
+            }
+
+            String username = jwtService.extractUsername(refreshToken);
+
+            if (username != null) {
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                if (jwtService.isTokenValid(refreshToken, userDetails)) {
+                    String newAccessToken = jwtService.generateToken(userDetails);
+
+                    AuthResponse response = new AuthResponse(
+                            newAccessToken,
+                            "Bearer",
+                            jwtConfig.getExpiration() / 1000,
+                            refreshToken, // Se mantiene el mismo refresh token
+                            "read write profile"
+                    );
+
+                    return ResponseEntity.ok(response);
+                }
+            }
+
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Invalid refresh token"));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "error", "Token refresh failed",
+                            "message", e.getMessage()
+                    ));
+        }
+    }
 
 }
