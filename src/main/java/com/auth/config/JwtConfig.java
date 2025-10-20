@@ -1,18 +1,23 @@
 package com.auth.config;
 
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
+ import com.nimbusds.jose.jwk.JWKSet;
+ import com.nimbusds.jose.jwk.RSAKey;
+ import com.nimbusds.jose.jwk.RSAKey;
+ import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+ import com.nimbusds.jose.jwk.source.JWKSource;
+ import com.nimbusds.jose.proc.SecurityContext;
+ import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
 
-import javax.crypto.SecretKey;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
+ import java.security.KeyPair;
+ import java.security.KeyPairGenerator;
+ import java.security.interfaces.RSAPrivateKey;
+ import java.security.interfaces.RSAPublicKey;
+ import java.util.UUID;
 
 /**
- * Configuración centralizada para JWT
+ * Configuración centralizada para JWT - ÚNICA fuente de claves RSA
  * Versión híbrida: Mantiene app.jwt.secret pero usa RSA para firma
  * Maneja claves secretas, expiración y configuración de tokens
  */
@@ -44,7 +49,9 @@ public class JwtConfig {
         try {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);
-            return keyPairGenerator.generateKeyPair();
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+            System.out.println("RSA Key Par generated successfully");
+            return keyPair;
         } catch (Exception ex) {
             throw new IllegalStateException("Error generating RSA key pair", ex);
         }
@@ -53,25 +60,32 @@ public class JwtConfig {
     /**
      * Obtiene la clave pública RSA para verificación
      */
-    public PublicKey getPublicKey() {
-        return rsaKeyPair.getPublic();
+    public RSAPublicKey getPublicKey() {
+        return (RSAPublicKey) rsaKeyPair.getPublic();
     }
 
     /**
      * Obtiene la clave privada RSA para firma
      */
-    public PrivateKey getPrivateKey() {
-        return rsaKeyPair.getPrivate();
+    public RSAPrivateKey getPrivateKey() {
+        return (RSAPrivateKey) rsaKeyPair.getPrivate();
     }
 
     /**
-     * Obtiene la clave secreta para firmar JWT HS256 (se mantiene por compatibilidad)
-     * La clave se decodifica desde Base64
+     * Fuente JWK para Spring OAuth2 - USA LAS MISMAS CLAVES
      */
-    public SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
-        return Keys.hmacShaKeyFor(keyBytes);
+    @Bean
+    public JWKSource<SecurityContext> jwkSource(){
+        RSAKey rsaKey = new RSAKey.Builder(getPublicKey())
+                .privateKey(getPrivateKey())
+                .keyID(UUID.randomUUID().toString())
+                .build();
+
+        JWKSet jwkSet = new JWKSet(rsaKey);
+        System.out.println("JWK Source configured with RSA keys");
+        return new ImmutableJWKSet<>(jwkSet);
     }
+
 
     /**
      * Obtiene el secreto en formato String (para otros usos)
@@ -92,5 +106,15 @@ public class JwtConfig {
 
     public String getIssuer() {
         return jwtIssuer;
+    }
+
+    /**
+     * Para debug: mostrar información de las claves
+     */
+    public void printKeyInfo() {
+        RSAPublicKey publicKey = getPublicKey();
+        System.out.println("🔑 RSA Public Key Algorithm: " + publicKey.getAlgorithm());
+        System.out.println("🔑 RSA Public Key Format: " + publicKey.getFormat());
+        System.out.println("🔑 RSA Public Key Modulus: " + publicKey.getModulus().toString(16).substring(0, 32) + "...");
     }
 }

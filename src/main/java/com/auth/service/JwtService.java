@@ -6,8 +6,8 @@ import io.jsonwebtoken.Jwts;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
@@ -15,22 +15,24 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Servicio para operaciones con JWT - CORREGIDO para usar RSA
- * - Generación de tokens
- * - Validación de tokens
- * - Extracción de información de tokens
+ * Servicio para operaciones con JWT - CORREGIDO  USA LAS MISMAS CLAVES RSA
  */
 @Service
 public class JwtService {
 
     private final JwtConfig jwtConfig;
-    private final PrivateKey privateKey;
-    private final PublicKey publicKey;
+    private final RSAPrivateKey privateKey;
+    private final RSAPublicKey publicKey;
 
     public JwtService(JwtConfig jwtConfig) {
         this.jwtConfig = jwtConfig;
         this.privateKey = jwtConfig.getPrivateKey();
         this.publicKey = jwtConfig.getPublicKey();
+
+        // Debug info
+        System.out.println("✅ JwtService initialized with RSA keys");
+        System.out.println("🔑 Private Key Algorithm: " + privateKey.getAlgorithm());
+        System.out.println("🔑 Public Key Algorithm: " + publicKey.getAlgorithm());
     }
 
     // =========================================================================
@@ -43,7 +45,9 @@ public class JwtService {
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("token_type", "access");
-        return buildToken(claims, userDetails, jwtConfig.getExpiration());
+        String token = buildToken(claims, userDetails, jwtConfig.getExpiration());
+        System.out.println("✅ Access Token generated for: " + userDetails.getUsername());
+        return token;
     }
 
     /**
@@ -52,7 +56,9 @@ public class JwtService {
     public String generateRefreshToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("token_type", "refresh");
-        return buildToken(claims, userDetails, jwtConfig.getRefreshExpiration());
+        String token = buildToken(claims, userDetails, jwtConfig.getRefreshExpiration());
+        System.out.println("✅ Refresh Token generated for: " + userDetails.getUsername());
+        return token;
     }
 
     /**
@@ -65,7 +71,7 @@ public class JwtService {
                 .issuer(jwtConfig.getIssuer())
                 .issuedAt(Date.from(Instant.now()))
                 .expiration(Date.from(Instant.now().plusMillis(expiration)))
-                .signWith(privateKey, Jwts.SIG.RS256) // Firma con RSA
+                .signWith(privateKey, Jwts.SIG.RS256) // MISMA CLAVE PRIVADA
                 .compact();
     }
 
@@ -78,7 +84,9 @@ public class JwtService {
      */
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        boolean isValid = (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        System.out.println("🔍 Token validation for " + username + ": " + (isValid ? "VALID" : "INVALID"));
+        return isValid;
     }
 
     /**
@@ -86,8 +94,11 @@ public class JwtService {
      */
     public boolean isTokenValid(String token) {
         try {
-            return !isTokenExpired(token);
+            boolean isValid = !isTokenExpired(token);
+            System.out.println("🔍 Token validation: " + (isValid ? "VALID" : "EXPIRED"));
+            return isValid;
         } catch (Exception e) {
+            System.out.println("❌ Token validation error: " + e.getMessage());
             return false;
         }
     }
@@ -123,7 +134,7 @@ public class JwtService {
      */
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .verifyWith(publicKey)
+                .verifyWith(publicKey) // MISMA CLAVE PÚBLICA
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
